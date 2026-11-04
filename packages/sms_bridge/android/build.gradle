@@ -1,0 +1,20 @@
+group 'com.amirali.smsbridge'
+version '1.0'
+
+apply plugin: 'com.android.library'
+
+android {
+    namespace 'com.amirali.smsbridge'
+
+    // اگر در app/build.gradle پروژه‌ات compileSdk دیگری است همان را بگذار
+    compileSdk 36
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    defaultConfig {
+        minSdk 24
+    }
+}

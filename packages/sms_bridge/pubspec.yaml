@@ -1,0 +1,19 @@
+name: sms_bridge
+description: Native Android helpers (dual-SIM SMS sending, SIM list, permission status, wake locks). Java only, no Kotlin Gradle plugin.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.3.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.amirali.smsbridge
+        pluginClass: SmsBridgePlugin
