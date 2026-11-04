@@ -9,6 +9,8 @@ import 'package:sms_and_call/core/constants/app_constants.dart';
 import 'package:sms_and_call/core/storage/app_storage.dart';
 import 'package:sms_and_call/core/theme/app_theme.dart';
 import 'package:sms_and_call/features/campaigns/data/scheduled_campaign_storage.dart';
+import 'package:sms_and_call/features/calls/presentation/call_setup_page.dart';
+import 'package:sms_and_call/features/calls/presentation/recordings_tab.dart';
 import 'package:sms_and_call/features/campaigns/presentation/campaigns_tab.dart';
 import 'package:sms_and_call/features/contacts/presentation/contacts_tab.dart';
 import 'package:sms_and_call/features/home/presentation/pages/activity_tab.dart';
@@ -553,6 +555,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _openCallSetup() {
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(builder: (_) => const CallSetupPage()),
+    );
+  }
+
   Future<void> _openPermissionsSheet() async {
     await showModalBottomSheet<void>(
       context: context,
@@ -675,11 +683,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         )
         .length;
 
-    const titles = ['داشبورد', 'مخاطب‌ها', 'کمپین‌ها', 'فعالیت‌ها', 'تنظیمات'];
+    const titles = [
+      'داشبورد',
+      'مخاطب‌ها',
+      'کمپین‌ها',
+      'تماس‌ها',
+      'فعالیت‌ها',
+      'تنظیمات',
+    ];
     const subtitles = [
       'وضعیت زنده و کنترل سرویس',
       'مدیریت مخاطبان و ارسال سریع',
       'زمان‌بندی دقیق ارسال‌های مناسبتی',
+      'ضبط تماس، متن مکالمه و جست‌وجو',
       'گزارش دریافت و ارسال کدها',
       'سرور، پیامک و دسترسی‌ها',
     ];
@@ -687,6 +703,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       Icons.space_dashboard_rounded,
       Icons.people_alt_rounded,
       Icons.schedule_send_rounded,
+      Icons.phone_in_talk_rounded,
       Icons.receipt_long_rounded,
       Icons.tune_rounded,
     ];
@@ -769,10 +786,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             onOpenPermissions: _openPermissionsSheet,
             onOpenServer: _openSettingsSheet,
             onOpenSms: _openSmsSheet,
-            onOpenActivity: () => setState(() => _selectedTab = 3),
+            onOpenActivity: () => setState(() => _selectedTab = 4),
           ),
           ContactsTab(onEnsureReady: _ensureSmsReady),
           CampaignsTab(onEnsureReady: _ensureSmsReady),
+          const RecordingsTab(),
           ActivityTab(
             logs: _logs,
             filter: _filter,
@@ -793,6 +811,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             onOpenPermissions: _openPermissionsSheet,
             onStart: _startFromUi,
             onStop: _stopService,
+            onOpenCalls: _openCallSetup,
             onOpenSendSettings: _openSendSettings,
             onOpenOptOut: _openOptOut,
           ),
@@ -831,6 +850,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               icon: _navIcon(Icons.event_note_outlined),
               selectedIcon: _navIcon(Icons.schedule_send_rounded),
               label: 'کمپین‌ها',
+            ),
+            NavigationDestination(
+              icon: _navIcon(Icons.phone_in_talk_outlined),
+              selectedIcon: _navIcon(Icons.phone_in_talk_rounded),
+              label: 'تماس‌ها',
             ),
             NavigationDestination(
               icon: _navIcon(Icons.receipt_long_outlined, count: issueCount),
