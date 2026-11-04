@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:sms_bridge/sms_bridge.dart';
-import 'package:untitled3/features/settings/domain/server_config.dart';
+import 'package:sms_and_call/features/settings/domain/server_config.dart';
 
 class AppDir {
   static String? _cached;

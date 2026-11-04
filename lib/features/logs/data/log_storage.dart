@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:untitled3/core/storage/app_storage.dart';
-import 'package:untitled3/features/logs/domain/log_entry.dart';
+import 'package:sms_and_call/core/storage/app_storage.dart';
+import 'package:sms_and_call/features/logs/domain/log_entry.dart';
 
 class LogStorage {
   static bool _writing = false;

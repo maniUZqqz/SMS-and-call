@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:untitled3/core/theme/app_theme.dart';
-import 'package:untitled3/features/home/presentation/home_page.dart';
+import 'package:sms_and_call/core/theme/app_theme.dart';
+import 'package:sms_and_call/features/home/presentation/home_page.dart';
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});

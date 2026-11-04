@@ -1,8 +1,8 @@
-name: untitled3
-description: "A new Flutter project."
+name: sms_and_call
+description: "SMS-and-call: reliable scheduled SMS campaigns, an optional OTP gateway, and call recording with speech-to-text (Android)."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.1.0+1
 
 environment:
   sdk: ^3.9.2
@@ -13,12 +13,12 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   http: ^1.6.0
+  http_parser: ^4.1.2
+  path: ^1.9.1
   permission_handler: ^12.0.1
   sms_bridge:
     path: packages/sms_bridge
   flutter_background_service: ^5.1.0
-
-
 
 dev_dependencies:
   flutter_test:

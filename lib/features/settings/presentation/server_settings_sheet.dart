@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:untitled3/features/settings/domain/server_config.dart';
-import 'package:untitled3/features/settings/presentation/widgets/sheet_header.dart';
+import 'package:sms_and_call/features/settings/domain/server_config.dart';
+import 'package:sms_and_call/features/settings/presentation/widgets/sheet_header.dart';
 
 class ServerSettingsSheet extends StatefulWidget {
   final ServerConfig initialConfig;

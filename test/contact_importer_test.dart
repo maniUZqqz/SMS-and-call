@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:untitled3/features/contacts/data/contact_importer.dart';
+import 'package:sms_and_call/features/contacts/data/contact_importer.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

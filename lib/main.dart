@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:untitled3/app/app.dart';
-import 'package:untitled3/services/background_service.dart';
+import 'package:sms_and_call/app/app.dart';
+import 'package:sms_and_call/services/background_service.dart';
 
-export 'package:untitled3/app/app.dart' show MyApp;
+export 'package:sms_and_call/app/app.dart' show MyApp;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

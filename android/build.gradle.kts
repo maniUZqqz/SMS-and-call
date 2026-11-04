@@ -1,25 +1,8 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
-buildscript {
-    repositories {
-        // مخازن آینه‌ای را در بالای لیست قرار دهید
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
-
-        // مخازن اصلی به عنوان پشتیبان
-        google()
-        mavenCentral()
-    }
-}
-
 allprojects {
     repositories {
-        // این بخش برای وابستگی‌های خود پروژه شماست
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
-
         google()
         mavenCentral()
     }
@@ -36,6 +19,7 @@ subprojects {
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
+// Some third-party plugins still compile Kotlin with a different JVM target than Java 11.
 subprojects {
     if (!state.executed) {
         afterEvaluate {

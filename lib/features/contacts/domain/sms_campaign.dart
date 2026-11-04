@@ -1,4 +1,4 @@
-import 'package:untitled3/features/contacts/domain/contact.dart';
+import 'package:sms_and_call/features/contacts/domain/contact.dart';
 
 enum CampaignState {
   queued,

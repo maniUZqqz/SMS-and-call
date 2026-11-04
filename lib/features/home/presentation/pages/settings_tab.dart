@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:sms_bridge/sms_bridge.dart';
-import 'package:untitled3/core/theme/app_theme.dart';
-import 'package:untitled3/features/logs/presentation/log_style.dart';
-import 'package:untitled3/features/settings/domain/server_config.dart';
+import 'package:sms_and_call/core/theme/app_theme.dart';
+import 'package:sms_and_call/features/logs/presentation/log_style.dart';
+import 'package:sms_and_call/features/settings/domain/server_config.dart';
 
 class SettingsTab extends StatelessWidget {
   const SettingsTab({

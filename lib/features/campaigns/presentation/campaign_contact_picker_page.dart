@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:untitled3/core/theme/app_theme.dart';
-import 'package:untitled3/features/contacts/domain/contact.dart';
+import 'package:sms_and_call/core/theme/app_theme.dart';
+import 'package:sms_and_call/features/contacts/domain/contact.dart';
 
 class CampaignContactPickerPage extends StatefulWidget {
   const CampaignContactPickerPage({

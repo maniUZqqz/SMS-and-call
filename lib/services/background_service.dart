@@ -2,9 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:untitled3/core/constants/app_constants.dart';
-import 'package:untitled3/features/contacts/services/campaign_engine.dart';
-import 'package:untitled3/features/gateway/services/gateway_engine.dart';
+import 'package:sms_and_call/core/constants/app_constants.dart';
+import 'package:sms_and_call/features/contacts/services/campaign_engine.dart';
+import 'package:sms_and_call/features/gateway/services/gateway_engine.dart';
 
 Future<void> initializeService() async {
   final service = FlutterBackgroundService();

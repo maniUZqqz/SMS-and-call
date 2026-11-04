@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:untitled3/features/contacts/domain/contact.dart';
+import 'package:sms_and_call/features/contacts/domain/contact.dart';
 
 class ImportedContactData {
   const ImportedContactData({

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:untitled3/features/contacts/domain/contact.dart';
-import 'package:untitled3/features/contacts/domain/sms_campaign.dart';
+import 'package:sms_and_call/features/contacts/domain/contact.dart';
+import 'package:sms_and_call/features/contacts/domain/sms_campaign.dart';
 
 void main() {
   test('contact normalizes Persian digits and round-trips through JSON', () {

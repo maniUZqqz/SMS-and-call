@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart' hide StepState;
-import 'package:untitled3/core/theme/app_theme.dart';
-import 'package:untitled3/features/logs/domain/log_entry.dart';
+import 'package:sms_and_call/core/theme/app_theme.dart';
+import 'package:sms_and_call/features/logs/domain/log_entry.dart';
 
 TextDirection dirFor(String s) => RegExp(r'[\u0600-\u06FF]').hasMatch(s)
     ? TextDirection.rtl

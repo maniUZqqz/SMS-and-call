@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sms_bridge/sms_bridge.dart';
-import 'package:untitled3/core/theme/app_theme.dart';
-import 'package:untitled3/features/settings/presentation/widgets/sheet_header.dart';
+import 'package:sms_and_call/core/theme/app_theme.dart';
+import 'package:sms_and_call/features/settings/presentation/widgets/sheet_header.dart';
 
 class _PermItem {
   const _PermItem({

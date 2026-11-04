@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:untitled3/core/utils/persian_date.dart';
-import 'package:untitled3/features/campaigns/domain/scheduled_campaign.dart';
-import 'package:untitled3/features/contacts/domain/sms_campaign.dart';
+import 'package:sms_and_call/core/utils/persian_date.dart';
+import 'package:sms_and_call/features/campaigns/domain/scheduled_campaign.dart';
+import 'package:sms_and_call/features/contacts/domain/sms_campaign.dart';
 
 void main() {
   group('Persian calendar', () {

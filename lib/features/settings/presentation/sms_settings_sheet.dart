@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:sms_bridge/sms_bridge.dart';
-import 'package:untitled3/core/constants/app_constants.dart';
-import 'package:untitled3/core/errors/error_classifier.dart';
-import 'package:untitled3/core/theme/app_theme.dart';
-import 'package:untitled3/features/logs/presentation/log_style.dart';
-import 'package:untitled3/features/settings/domain/server_config.dart';
-import 'package:untitled3/features/settings/presentation/widgets/sheet_header.dart';
+import 'package:sms_and_call/core/constants/app_constants.dart';
+import 'package:sms_and_call/core/errors/error_classifier.dart';
+import 'package:sms_and_call/core/theme/app_theme.dart';
+import 'package:sms_and_call/features/logs/presentation/log_style.dart';
+import 'package:sms_and_call/features/settings/domain/server_config.dart';
+import 'package:sms_and_call/features/settings/presentation/widgets/sheet_header.dart';
 
 class SmsSettingsSheet extends StatefulWidget {
   final ServerConfig initialConfig;

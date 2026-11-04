@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:untitled3/core/theme/app_theme.dart';
-import 'package:untitled3/features/home/presentation/widgets/log_tile.dart';
-import 'package:untitled3/features/logs/domain/log_entry.dart';
+import 'package:sms_and_call/core/theme/app_theme.dart';
+import 'package:sms_and_call/features/home/presentation/widgets/log_tile.dart';
+import 'package:sms_and_call/features/logs/domain/log_entry.dart';
 
 enum LogFilter { all, codes, connection, issues }
 

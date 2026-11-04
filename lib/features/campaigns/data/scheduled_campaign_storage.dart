@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:untitled3/core/storage/app_storage.dart';
-import 'package:untitled3/features/campaigns/domain/scheduled_campaign.dart';
+import 'package:sms_and_call/core/storage/app_storage.dart';
+import 'package:sms_and_call/features/campaigns/domain/scheduled_campaign.dart';
 
 class ScheduledCampaignStorage {
   static Future<File> _file() async {
