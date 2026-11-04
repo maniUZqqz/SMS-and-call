@@ -10,7 +10,9 @@ import 'package:sms_and_call/core/errors/error_classifier.dart';
 import 'package:sms_and_call/core/storage/app_storage.dart';
 import 'package:sms_and_call/features/logs/data/log_storage.dart';
 import 'package:sms_and_call/features/logs/domain/log_entry.dart';
+import 'package:sms_and_call/features/gateway/data/sent_ids_storage.dart';
 import 'package:sms_and_call/features/settings/domain/server_config.dart';
+import 'package:sms_and_call/services/lock_coordinator.dart';
 
 class _Flow {
   _Flow(this.entry);
@@ -45,7 +47,10 @@ class GatewayEngine {
   int? _latency;
   DateTime? _lastOk;
   bool _idleLogged = false;
+  bool _loopRunning = false;
   String _lastNotif = '';
+
+  static const String _lockName = 'gateway';
 
   Future<void> start() async {
     service.on('stopService').listen((_) => _shutdown());
@@ -56,10 +61,11 @@ class GatewayEngine {
       _flows.clear();
     });
 
-    // جلوگیری از خوابیدن CPU/Wi-Fi وقتی برنامه بسته است
-    unawaited(SmsBridge.acquireLocks());
-
     _config = await ConfigStorage.load();
+
+    // شناسه‌های پیامک‌شده را از دیسک بخوان: اگر سرویس بعد از ارسال و پیش از «ثبت در سرور»
+    // کشته شود، همان کد دوباره برای مشتری ارسال نمی‌شود.
+    _sentIds.addAll(await SentIdsStorage.load());
 
     final history = await LogStorage.load();
     final changed = LogStorage.closeStale(history);
@@ -73,17 +79,29 @@ class GatewayEngine {
         kind: LogKind.system,
         level: LogLevel.success,
         title: 'سرویس شروع شد',
-        meta: {
-          'سرور': _config.baseUrl,
-          'دریافت کد': _config.otpPath,
-          'ثبت ارسال': _config.markSentPath,
-          'سیم‌کارت': _config.simTitle,
-          'بازه بررسی': 'هر ۲ ثانیه',
-        },
+        meta: _config.gatewayEnabled
+            ? {
+                'سرور': _config.baseUrl,
+                'دریافت کد': _config.otpPath,
+                'ثبت ارسال': _config.markSentPath,
+                'سیم‌کارت': _config.simTitle,
+                'بازه بررسی': 'هر ۲ ثانیه',
+              }
+            : {
+                'گیت‌وی کد تأیید': 'غیرفعال (از تنظیمات سرور روشن می‌شود)',
+                'سیم‌کارت': _config.simTitle,
+              },
       ),
     );
     _emitStatus();
     unawaited(_logEnvironment());
+    _startLoopIfEnabled();
+  }
+
+  /// حلقه‌ی دریافت کد فقط وقتی «گیت‌وی» روشن است اجرا می‌شود؛ بدون آن، گوشی
+  /// ۲۴ ساعته به سرور درخواست نمی‌فرستد و قفل Wi-Fi/CPU نمی‌گیرد.
+  void _startLoopIfEnabled() {
+    if (_stopped || _loopRunning || !_config.gatewayEnabled) return;
     unawaited(_loop());
   }
 
@@ -211,7 +229,9 @@ class GatewayEngine {
     final text = e.notificationText;
     final s = service;
 
-    if (s is AndroidServiceInstance && text != _lastNotif) {
+    if (s is AndroidServiceInstance &&
+        _config.gatewayEnabled &&
+        text != _lastNotif) {
       _lastNotif = text;
       s.setForegroundNotificationInfo(title: 'گیت‌وی پیامک', content: text);
     }
@@ -253,6 +273,7 @@ class GatewayEngine {
       _config = ServerConfig.fromJson(Map<String, dynamic>.from(event));
 
       final serverChanged =
+          old.gatewayEnabled != _config.gatewayEnabled ||
           old.baseUrl != _config.baseUrl ||
           old.otpPath != _config.otpPath ||
           old.markSentPath != _config.markSentPath;
@@ -275,6 +296,19 @@ class GatewayEngine {
               'دریافت کد': _config.otpPath,
               'ثبت ارسال': _config.markSentPath,
             },
+          ),
+        );
+      }
+
+      if (_config.gatewayEnabled) {
+        _startLoopIfEnabled();
+      } else if (old.gatewayEnabled) {
+        _add(
+          LogEntry(
+            kind: LogKind.system,
+            level: LogLevel.warning,
+            title: 'گیت‌وی کد تأیید خاموش شد',
+            hint: 'دریافت کد از سرور تا روشن‌شدن دوباره متوقف است.',
           ),
         );
       }
@@ -324,13 +358,15 @@ class GatewayEngine {
     );
 
     await LogStorage.flush(_logs);
-    await SmsBridge.releaseLocks();
+    await LockCoordinator.release(_lockName);
     await Future<void>.delayed(const Duration(milliseconds: 250));
     service.stopSelf();
   }
 
   Future<void> _loop() async {
-    while (!_stopped) {
+    _loopRunning = true;
+    await LockCoordinator.acquire(_lockName, needsWifi: true);
+    while (!_stopped && _config.gatewayEnabled) {
       try {
         await _pollOnce();
       } catch (e) {
@@ -352,6 +388,10 @@ class GatewayEngine {
 
       await Future<void>.delayed(Duration(seconds: _nextDelaySecs));
     }
+    _loopRunning = false;
+    _conn = 'init';
+    _emitStatus();
+    if (!_stopped) await LockCoordinator.release(_lockName);
   }
 
   Future<void> _pollOnce() async {
@@ -778,6 +818,7 @@ class GatewayEngine {
         if (_sentIds.length > 500) {
           _sentIds.remove(_sentIds.first);
         }
+        unawaited(SentIdsStorage.save(_sentIds));
 
         _sent++;
         flow.retryAt = null;

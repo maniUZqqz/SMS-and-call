@@ -159,6 +159,11 @@ class _CampaignsTabState extends State<CampaignsTab>
       'id': campaign.id,
     });
     await ScheduledCampaignStorage.delete(campaign.id);
+    // اجرای نیمه‌تمامِ همین کمپین (اگر سرویس پایین بود و پیام حذف نرسید) هم پاک شود
+    final active = await CampaignStorage.loadActive();
+    if (active?.scheduledCampaignId == campaign.id) {
+      await CampaignStorage.clearActive();
+    }
     await _load();
     if (mounted) _snack('کمپین حذف شد.');
   }

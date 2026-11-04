@@ -22,15 +22,34 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
 
+    <!-- زمان‌بندی دقیق (آلارم) — USE_EXACT_ALARM از Android 13، SCHEDULE_EXACT_ALARM برای Android 12 -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+
+    <!-- ضبط تماس: تاریخچه‌ی تماس، فایل‌های صوتی ضبط‌کننده‌ی گوشی، میکروفون -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <!-- نصب روی دستگاه‌های بدون تلفن (تبلت) ممکن بماند؛ خود برنامه خطای واضح می‌دهد -->
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
 
     <application
-        android:label="sms_1"
+        android:label="پیامک و تماس"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
         android:usesCleartextTraffic="true">
 
         <activity

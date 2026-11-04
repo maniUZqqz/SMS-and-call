@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="smsbridge_a11y_label">ضبط تماس (پیامک و تماس)</string>
+    <string name="smsbridge_a11y_description">این سرویس فقط برای ضبط تماس‌ها با میکروفون در پس‌زمینه روشن می‌شود. محتوای صفحه‌ی گوشی را نمی‌خواند و اطلاعاتی از آن جمع نمی‌کند.</string>
+</resources>

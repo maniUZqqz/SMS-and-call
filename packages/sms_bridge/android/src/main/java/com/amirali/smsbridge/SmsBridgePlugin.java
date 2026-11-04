@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
@@ -31,6 +32,10 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.flutter.embedding.engine.plugins.FlutterPlugin;
@@ -56,6 +61,37 @@ public class SmsBridgePlugin implements FlutterPlugin, MethodChannel.MethodCallH
     private static final long SEND_TIMEOUT_MS = 60_000L;
     private static final int PICK_CONTACT_FILE_REQUEST = 7431;
     private static final AtomicInteger REQUEST_COUNTER = new AtomicInteger(1);
+    /** با هر فرایند تازه عوض می‌شود تا گزارش دیرهنگامِ فرایند قبلی با پیامک جدید اشتباه گرفته نشود. */
+    private static final long PROCESS_STAMP = System.currentTimeMillis();
+
+    /**
+     * نمونه‌هایی از افزونه که در ایزوله‌ی سرویس پس‌زمینه‌اند و Dart برایشان کنترل‌کننده‌ی
+     * «بیدار شو» ثبت کرده است. آلارم سیستم‌عامل فقط به اینها خبر می‌دهد.
+     */
+    private static final Set<SmsBridgePlugin> WAKE_LISTENERS = new CopyOnWriteArraySet<>();
+    private static final ExecutorService IO = Executors.newSingleThreadExecutor();
+
+    /** true یعنی دست‌کم یک ایزوله‌ی زنده خبر را گرفت (نیازی به بالا آوردن دوباره‌ی سرویس نیست). */
+    static boolean notifyWake(final String reason) {
+        boolean delivered = false;
+        for (final SmsBridgePlugin plugin : WAKE_LISTENERS) {
+            final MethodChannel ch = plugin.channel;
+            if (ch == null) continue;
+            delivered = true;
+            plugin.mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Map<String, Object> args = new HashMap<>();
+                        args.put("reason", reason);
+                        ch.invokeMethod("onWake", args);
+                    } catch (Throwable ignored) {
+                    }
+                }
+            });
+        }
+        return delivered;
+    }
 
     private Context context;
     private Activity activity;
@@ -66,6 +102,7 @@ public class SmsBridgePlugin implements FlutterPlugin, MethodChannel.MethodCallH
 
     private PowerManager.WakeLock wakeLock;
     private WifiManager.WifiLock wifiLock;
+    private final AudioPlayerBridge audioPlayer = new AudioPlayerBridge();
 
     // ───────────────────────── lifecycle ─────────────────────────
 
@@ -78,8 +115,10 @@ public class SmsBridgePlugin implements FlutterPlugin, MethodChannel.MethodCallH
 
     @Override
     public void onDetachedFromEngine(FlutterPluginBinding binding) {
+        WAKE_LISTENERS.remove(this);
         if (channel != null) channel.setMethodCallHandler(null);
         channel = null;
+        audioPlayer.stop();
         releaseLocks();
     }
 
@@ -143,6 +182,126 @@ public class SmsBridgePlugin implements FlutterPlugin, MethodChannel.MethodCallH
                 case "releaseLocks":
                     releaseLocks();
                     result.success(true);
+                    break;
+                case "setLocks":
+                    setLocks(boolArg(call, "cpu"), boolArg(call, "wifi"));
+                    result.success(true);
+                    break;
+                case "registerWakeHandler":
+                    WAKE_LISTENERS.add(this);
+                    result.success(true);
+                    break;
+                case "scheduleWake":
+                    result.success(scheduleWake(call));
+                    break;
+                case "cancelWake": {
+                    String slot = call.argument("slot");
+                    WakeScheduler.cancel(context, slot == null ? "campaign" : slot);
+                    result.success(true);
+                    break;
+                }
+                case "wakeStatus":
+                    result.success(wakeStatus());
+                    break;
+                case "openExactAlarmSettings":
+                    result.success(OemSettings.openExactAlarm(contextForUi()));
+                    break;
+                case "openAutoStartSettings":
+                    result.success(OemSettings.openAutoStart(contextForUi()));
+                    break;
+                case "openAccessibilitySettings":
+                    result.success(OemSettings.openAccessibility(contextForUi()));
+                    break;
+                case "queryCallLog":
+                    runAsync(result, new Job() {
+                        @Override
+                        public Object run() {
+                            Number since = call.argument("sinceMillis");
+                            Number limit = call.argument("limit");
+                            return CallMedia.queryCallLog(context,
+                                    since == null ? 0L : since.longValue(),
+                                    limit == null ? 300 : limit.intValue());
+                        }
+                    });
+                    break;
+                case "queryAudioFiles":
+                    runAsync(result, new Job() {
+                        @Override
+                        public Object run() {
+                            Number since = call.argument("sinceMillis");
+                            Number limit = call.argument("limit");
+                            return CallMedia.queryAudioFiles(context,
+                                    since == null ? 0L : since.longValue(),
+                                    limit == null ? 500 : limit.intValue());
+                        }
+                    });
+                    break;
+                case "copyUriToFile":
+                    runAsync(result, new Job() {
+                        @Override
+                        public Object run() {
+                            return CallMedia.copyUriToFile(context,
+                                    (String) call.argument("uri"), (String) call.argument("destination"));
+                        }
+                    });
+                    break;
+                case "callRecorderStatus":
+                    result.success(callRecorderStatus());
+                    break;
+                case "configureCallRecorder": {
+                    Boolean enabled = call.argument("enabled");
+                    Boolean speaker = call.argument("autoSpeaker");
+                    RecorderEngine.prefs(context).edit()
+                            .putBoolean("enabled", enabled != null && enabled)
+                            .putBoolean("auto_speaker", speaker != null && speaker)
+                            .apply();
+                    result.success(true);
+                    break;
+                }
+                case "startManualRecording":
+                    result.success(startManualRecording());
+                    break;
+                case "stopManualRecording":
+                    result.success(RecorderEngine.stop(context));
+                    break;
+                case "secureWrite":
+                    result.success(SecureStore.write(context,
+                            (String) call.argument("key"), (String) call.argument("value")));
+                    break;
+                case "secureRead":
+                    result.success(SecureStore.read(context, (String) call.argument("key")));
+                    break;
+                case "secureDelete":
+                    result.success(SecureStore.delete(context, (String) call.argument("key")));
+                    break;
+                case "playerPlay":
+                    result.success(audioPlayer.play((String) call.argument("path")));
+                    break;
+                case "playerPause":
+                    result.success(audioPlayer.pause());
+                    break;
+                case "playerResume":
+                    result.success(audioPlayer.resume());
+                    break;
+                case "playerStop":
+                    result.success(audioPlayer.stop());
+                    break;
+                case "playerSeek": {
+                    Number position = call.argument("positionMs");
+                    result.success(audioPlayer.seek(position == null ? 0 : position.intValue()));
+                    break;
+                }
+                case "playerState":
+                    result.success(audioPlayer.state());
+                    break;
+                case "shareText":
+                    result.success(ShareHelper.shareText(contextForUi(),
+                            (String) call.argument("text"), (String) call.argument("subject")));
+                    break;
+                case "shareFile":
+                    result.success(ShareHelper.shareFile(contextForUi(),
+                            (String) call.argument("path"), (String) call.argument("mime"),
+                            (String) call.argument("subject")));
                     break;
                 default:
                     result.notImplemented();
@@ -281,7 +440,116 @@ public class SmsBridgePlugin implements FlutterPlugin, MethodChannel.MethodCallH
         m.put("sdk", Build.VERSION.SDK_INT);
         m.put("manufacturer", str(Build.MANUFACTURER));
         m.put("model", str(Build.MODEL));
+        m.put("brand", str(Build.BRAND).toLowerCase());
+        m.put("exactAlarm", WakeScheduler.canScheduleExact(context));
+        m.put("callLog", has(Manifest.permission.READ_CALL_LOG));
+        m.put("audioMedia", Build.VERSION.SDK_INT >= 33
+                ? has("android.permission.READ_MEDIA_AUDIO")
+                : has(Manifest.permission.READ_EXTERNAL_STORAGE));
+        m.put("recordAudio", has(Manifest.permission.RECORD_AUDIO));
+        m.put("accessibility", CallRecorderAccessibilityService.isEnabledInSettings(context));
         return m;
+    }
+
+    // ───────────────────────── helpers (جدید) ─────────────────────────
+
+    private interface Job {
+        Object run();
+    }
+
+    /** کارهای سنگین (پرس‌وجوی MediaStore، کپی فایل) را خارج از نخ اصلی اجرا می‌کند. */
+    private void runAsync(final MethodChannel.Result result, final Job job) {
+        IO.execute(new Runnable() {
+            @Override
+            public void run() {
+                Object value = null;
+                Throwable error = null;
+                try {
+                    value = job.run();
+                } catch (Throwable t) {
+                    error = t;
+                }
+                final Object finalValue = value;
+                final Throwable finalError = error;
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (finalError != null) {
+                            result.error("NATIVE_ERROR", finalError.toString(), null);
+                        } else {
+                            result.success(finalValue);
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    private static boolean boolArg(MethodCall call, String name) {
+        Boolean v = call.argument(name);
+        return v != null && v;
+    }
+
+    /** برای باز کردن صفحه‌ها: Activity اگر هست، وگرنه Context برنامه (با FLAG_ACTIVITY_NEW_TASK). */
+    private Context contextForUi() {
+        return activity != null ? activity : context;
+    }
+
+    private Map<String, Object> scheduleWake(MethodCall call) {
+        Number at = call.argument("atMillis");
+        String reason = call.argument("reason");
+        String slot = call.argument("slot");
+        Map<String, Object> out = new HashMap<>();
+        if (at == null) {
+            out.put("mode", "failed");
+            return out;
+        }
+        out.put("mode", WakeScheduler.arm(context, slot == null ? "campaign" : slot,
+                at.longValue(), reason == null ? "schedule" : reason));
+        return out;
+    }
+
+    private Map<String, Object> wakeStatus() {
+        SharedPreferences prefs = WakeScheduler.prefs(context);
+        Map<String, Object> m = new HashMap<>();
+        m.put("canExact", WakeScheduler.canScheduleExact(context));
+        long next = 0L;
+        String nextReason = "";
+        for (Map.Entry<String, Long> e : WakeScheduler.pending(context).entrySet()) {
+            if (next == 0L || e.getValue() < next) {
+                next = e.getValue();
+                nextReason = prefs.getString("reason_" + e.getKey(), "");
+            }
+        }
+        m.put("nextWakeAt", next);
+        m.put("nextWakeReason", nextReason);
+        m.put("lastFiredAt", prefs.getLong("last_fired_at", 0L));
+        m.put("lastFiredReason", prefs.getString("last_fired_reason", ""));
+        m.put("lastStartedService", prefs.getBoolean("last_started_service", false));
+        m.put("lastError", prefs.getString("last_error", ""));
+        m.put("mode", next == 0L ? "none" : (WakeScheduler.canScheduleExact(context) ? "exact" : "inexact"));
+        return m;
+    }
+
+    private Map<String, Object> callRecorderStatus() {
+        SharedPreferences prefs = RecorderEngine.prefs(context);
+        Map<String, Object> m = new HashMap<>();
+        m.put("enabled", prefs.getBoolean("enabled", false));
+        m.put("autoSpeaker", prefs.getBoolean("auto_speaker", false));
+        m.put("accessibilityEnabled", CallRecorderAccessibilityService.isEnabledInSettings(context));
+        m.put("recording", RecorderEngine.isRecording());
+        m.put("lastError", prefs.getString("last_error", ""));
+        m.put("lastRecordingAt", prefs.getLong("last_recording_at", 0L));
+        m.put("recordingsDir", RecorderEngine.dir(context).getAbsolutePath());
+        return m;
+    }
+
+    private boolean startManualRecording() {
+        if (!has(Manifest.permission.RECORD_AUDIO)) {
+            RecorderEngine.prefs(context).edit().putString("last_error", "مجوز میکروفون داده نشده است.").apply();
+            return false;
+        }
+        return RecorderEngine.start(context, true, "unknown", "", false);
     }
 
     private boolean notificationsEnabled() {
@@ -511,7 +779,7 @@ public class SmsBridgePlugin implements FlutterPlugin, MethodChannel.MethodCallH
         }
 
         final int reqId = REQUEST_COUNTER.getAndIncrement();
-        final String action = context.getPackageName() + ".SMS_BRIDGE_SENT_" + reqId;
+        final String action = context.getPackageName() + ".SMS_BRIDGE_SENT_" + PROCESS_STAMP + "_" + reqId;
         SendTracker tracker = null;
         boolean registered = false;
 
@@ -570,8 +838,13 @@ public class SmsBridgePlugin implements FlutterPlugin, MethodChannel.MethodCallH
 
     // ───────────────────────── wake / wifi locks ─────────────────────────
 
-    @SuppressWarnings("deprecation")
     private void acquireLocks() {
+        acquireCpuLock();
+        acquireWifiLock();
+    }
+
+    @SuppressWarnings("deprecation")
+    private void acquireCpuLock() {
         try {
             if (wakeLock == null) {
                 PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
@@ -583,6 +856,10 @@ public class SmsBridgePlugin implements FlutterPlugin, MethodChannel.MethodCallH
             if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire();
         } catch (Throwable ignored) {
         }
+    }
+
+    @SuppressWarnings("deprecation")
+    private void acquireWifiLock() {
         try {
             if (wifiLock == null) {
                 WifiManager wm = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
@@ -599,11 +876,34 @@ public class SmsBridgePlugin implements FlutterPlugin, MethodChannel.MethodCallH
         }
     }
 
+    /** قفل‌ها را روی وضعیت دلخواه می‌گذارد؛ با خاموش‌شدن CPU قفل افزونه‌ی سرویس هم آزاد می‌شود. */
+    private void setLocks(boolean cpu, boolean wifi) {
+        if (cpu) {
+            acquireCpuLock();
+        } else {
+            releaseCpuLock();
+            WakeScheduler.releasePluginWakeLock();
+        }
+        if (wifi) {
+            acquireWifiLock();
+        } else {
+            releaseWifiLock();
+        }
+    }
+
     private void releaseLocks() {
+        releaseCpuLock();
+        releaseWifiLock();
+    }
+
+    private void releaseCpuLock() {
         try {
             if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
         } catch (Throwable ignored) {
         }
+    }
+
+    private void releaseWifiLock() {
         try {
             if (wifiLock != null && wifiLock.isHeld()) wifiLock.release();
         } catch (Throwable ignored) {

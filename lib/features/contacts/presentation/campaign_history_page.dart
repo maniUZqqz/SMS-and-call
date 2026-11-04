@@ -118,6 +118,23 @@ class CampaignDetailsPage extends StatelessWidget {
             color: AppColors.error,
             icon: Icons.error_outline_rounded,
             recipients: campaign.failedRecipients,
+            notes: campaign.failureNotes,
+          ),
+          ..._recipientSection(
+            context,
+            title: 'ارسال نشد (لغو، تکراری یا شماره‌ی نامعتبر)',
+            color: AppColors.textSecondary,
+            icon: Icons.block_rounded,
+            recipients: campaign.skippedRecipients,
+            notes: {
+              for (final entry in campaign.skipped.entries)
+                entry.key: switch (entry.value) {
+                  'optout' => 'در فهرست «لغو» بود',
+                  'duplicate' => 'شماره‌ی تکراری',
+                  'invalid' => 'شماره‌ی نامعتبر',
+                  _ => entry.value,
+                },
+            },
           ),
           ..._recipientSection(
             context,
@@ -138,6 +155,7 @@ class CampaignDetailsPage extends StatelessWidget {
     required Color color,
     required IconData icon,
     required List<CampaignRecipient> recipients,
+    Map<String, String> notes = const {},
   }) {
     if (recipients.isEmpty) return const <Widget>[];
     return <Widget>[
@@ -168,6 +186,7 @@ class CampaignDetailsPage extends StatelessWidget {
               recipient: recipients[index],
               color: color,
               icon: icon,
+              note: notes[recipients[index].contactId],
             ),
           ),
         ),
@@ -367,11 +386,13 @@ class _RecipientTile extends StatelessWidget {
     required this.recipient,
     required this.color,
     required this.icon,
+    this.note,
   });
 
   final CampaignRecipient recipient;
   final Color color;
   final IconData icon;
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -387,11 +408,27 @@ class _RecipientTile extends StatelessWidget {
           Icon(icon, color: color, size: 19),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              recipient.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  recipient.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                if (note != null && note!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      note!,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: color,
+                        height: 1.5,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           Text(

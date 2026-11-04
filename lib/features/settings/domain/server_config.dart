@@ -2,6 +2,10 @@ import 'package:sms_bridge/sms_bridge.dart';
 import 'package:sms_and_call/core/constants/app_constants.dart';
 
 class ServerConfig {
+  /// گیت‌وی کد تأیید: دریافت شماره و کد از سرور و ارسال پیامک. به‌طور پیش‌فرض خاموش است
+  /// تا برنامه‌ی عادی (کمپین و تماس) بی‌دلیل به سرور وصل نشود.
+  bool gatewayEnabled;
+
   String baseUrl;
   String otpPath;
   String markSentPath;
@@ -15,6 +19,7 @@ class ServerConfig {
   String simLabel;
 
   ServerConfig({
+    this.gatewayEnabled = false,
     required this.baseUrl,
     required this.otpPath,
     required this.markSentPath,
@@ -40,6 +45,7 @@ class ServerConfig {
     final slot = json['simSlot'];
     final label = json['simLabel'];
     return ServerConfig(
+      gatewayEnabled: json['gatewayEnabled'] == true,
       baseUrl: (base != null && base.isNotEmpty) ? base : d.baseUrl,
       otpPath: (otp != null && otp.isNotEmpty) ? otp : d.otpPath,
       markSentPath: (mark != null && mark.isNotEmpty) ? mark : d.markSentPath,
@@ -51,6 +57,7 @@ class ServerConfig {
   }
 
   Map<String, dynamic> toJson() => {
+    'gatewayEnabled': gatewayEnabled,
     'baseUrl': baseUrl,
     'otpPath': otpPath,
     'markSentPath': markSentPath,
@@ -61,6 +68,7 @@ class ServerConfig {
   };
 
   ServerConfig copyWith({
+    bool? gatewayEnabled,
     String? baseUrl,
     String? otpPath,
     String? markSentPath,
@@ -69,6 +77,7 @@ class ServerConfig {
     int? simSlot,
     String? simLabel,
   }) => ServerConfig(
+    gatewayEnabled: gatewayEnabled ?? this.gatewayEnabled,
     baseUrl: baseUrl ?? this.baseUrl,
     otpPath: otpPath ?? this.otpPath,
     markSentPath: markSentPath ?? this.markSentPath,

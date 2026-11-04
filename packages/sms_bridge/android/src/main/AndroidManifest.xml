@@ -1,5 +1,4 @@
-﻿<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.amirali.smsbridge">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
@@ -10,5 +9,75 @@
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- زمان‌بندی دقیق: USE_EXACT_ALARM خودکار داده می‌شود (Android 13+)؛
+         در Android 12 مجوز SCHEDULE_EXACT_ALARM هنگام نصب داده می‌شود. -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission
+        android:name="android.permission.SCHEDULE_EXACT_ALARM"
+        android:maxSdkVersion="32" />
+
+    <!-- ضبط تماس: تاریخچه‌ی تماس، فایل‌های صوتی (ضبط‌کننده‌ی گوشی) و میکروفون (ضبط داخلی) -->
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <application>
+
+        <!-- آلارم‌های بیدارکننده + بازسازی آنها پس از ری‌استارت و تغییر ساعت -->
+        <receiver
+            android:name="com.amirali.smsbridge.WakeReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- وضعیت تماس: شروع/پایان ضبط داخلی و بیداری پس از هر تماس -->
+        <receiver
+            android:name="com.amirali.smsbridge.PhoneStateReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.PHONE_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- سرویس دسترس‌پذیری ضبط داخلی (فقط برای مجاز ماندن ضبط در پس‌زمینه؛ محتوای صفحه را نمی‌خواند) -->
+        <service
+            android:name="com.amirali.smsbridge.CallRecorderAccessibilityService"
+            android:exported="true"
+            android:label="@string/smsbridge_a11y_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/smsbridge_accessibility" />
+        </service>
+
+        <!-- اشتراک‌گذاری ضبط و رونوشت -->
+        <provider
+            android:name="com.amirali.smsbridge.SmsBridgeFileProvider"
+            android:authorities="${applicationId}.smsbridge.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/smsbridge_file_paths" />
+        </provider>
+
+    </application>
 </manifest>

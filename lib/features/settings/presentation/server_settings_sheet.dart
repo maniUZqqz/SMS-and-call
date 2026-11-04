@@ -21,11 +21,13 @@ class _ServerSettingsSheetState extends State<ServerSettingsSheet> {
   late final TextEditingController _markSentPathCtrl;
 
   bool _advancedOpen = false;
+  late bool _gatewayEnabled;
 
   @override
   void initState() {
     super.initState();
 
+    _gatewayEnabled = widget.initialConfig.gatewayEnabled;
     _baseUrlCtrl = TextEditingController(text: widget.initialConfig.baseUrl);
 
     _otpPathCtrl = TextEditingController(text: widget.initialConfig.otpPath);
@@ -46,6 +48,11 @@ class _ServerSettingsSheetState extends State<ServerSettingsSheet> {
 
   String? _validateBaseUrl(String? value) {
     final v = (value ?? '').trim();
+
+    // وقتی گیت‌وی خاموش است، آدرس سرور استفاده نمی‌شود و خالی بودنش مانعی ندارد
+    if (!_gatewayEnabled && v.isEmpty) {
+      return null;
+    }
 
     if (v.isEmpty) {
       return 'آدرس سرور را وارد کنید';
@@ -93,7 +100,10 @@ class _ServerSettingsSheetState extends State<ServerSettingsSheet> {
 
     // فیلدهای پیامک/سیم‌کارت دست‌نخورده می‌مانند
     final config = widget.initialConfig.copyWith(
-      baseUrl: _baseUrlCtrl.text.trim(),
+      gatewayEnabled: _gatewayEnabled,
+      baseUrl: _baseUrlCtrl.text.trim().isEmpty
+          ? widget.initialConfig.baseUrl
+          : _baseUrlCtrl.text.trim(),
       otpPath: _otpPathCtrl.text.trim(),
       markSentPath: _markSentPathCtrl.text.trim(),
     );
@@ -127,7 +137,18 @@ class _ServerSettingsSheetState extends State<ServerSettingsSheet> {
                 title: 'تنظیمات سرور',
                 subtitle: 'آدرس دریافت کد و مسیرهای API را تغییر دهید',
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _gatewayEnabled,
+                onChanged: (value) => setState(() => _gatewayEnabled = value),
+                title: const Text('گیت‌وی کد تأیید (OTP)'),
+                subtitle: const Text(
+                  'گوشی هر چند ثانیه از سرور شماره و کد می‌گیرد و پیامک می‌فرستد. '
+                  'اگر فقط کمپین و ضبط تماس می‌خواهید، خاموش بماند.',
+                ),
+              ),
+              const SizedBox(height: 8),
               TextFormField(
                 controller: _baseUrlCtrl,
                 textDirection: TextDirection.ltr,
