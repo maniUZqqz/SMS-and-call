@@ -2,15 +2,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:sms_and_call/core/storage/app_storage.dart';
+import 'package:sms_and_call/core/storage/file_mutex.dart';
 import 'package:sms_and_call/features/campaigns/domain/scheduled_campaign.dart';
 
 class ScheduledCampaignStorage {
   static Future<File> _file() async {
     return File('${await AppDir.path()}/sms_gateway_scheduled_campaigns.json');
-  }
-
-  static Future<File> _lockFile() async {
-    return File('${await AppDir.path()}/sms_gateway_scheduled_campaigns.lock');
   }
 
   static Future<List<ScheduledCampaign>> load() async {
@@ -70,9 +67,9 @@ class ScheduledCampaignStorage {
   static Future<void> _mutate(
     void Function(List<ScheduledCampaign> campaigns) operation,
   ) async {
-    final lockHandle = await (await _lockFile()).open(mode: FileMode.append);
-    try {
-      await lockHandle.lock(FileLock.exclusive);
+    // قفل فایلِ سیستم‌عامل بین دو ایزولهٔ یک فرایند اثری ندارد؛ از FileMutex استفاده می‌شود.
+    final mutex = FileMutex('${await AppDir.path()}/sms_gateway_scheduled_campaigns.mutex');
+    await mutex.synchronized(() async {
       final campaigns = await load();
       operation(campaigns);
       campaigns.sort(_compareCampaigns);
@@ -80,12 +77,7 @@ class ScheduledCampaignStorage {
         await _file(),
         jsonEncode(campaigns.map((campaign) => campaign.toJson()).toList()),
       );
-    } finally {
-      try {
-        await lockHandle.unlock();
-      } catch (_) {}
-      await lockHandle.close();
-    }
+    });
   }
 
   static int _compareCampaigns(

@@ -123,6 +123,19 @@ String normalizePhoneNumber(String value) {
   return hasPlus ? '+$normalized' : normalized;
 }
 
+/// کلید یکتای یک شماره برای مقایسه (تکراری‌ها، فهرست لغو، تطبیق تماس با رکورد).
+/// `09123456789`، `+989123456789`، `00989123456789` و `9123456789` همه یک کلید می‌دهند.
+String phoneKey(String value) {
+  var digits = normalizePhoneNumber(value).replaceAll('+', '');
+  if (digits.startsWith('00')) digits = digits.substring(2);
+  if (digits.startsWith('98') && digits.length == 12) {
+    digits = digits.substring(2);
+  } else if (digits.startsWith('0') && digits.length == 11) {
+    digits = digits.substring(1);
+  }
+  return digits;
+}
+
 bool isValidPhoneNumber(String value) {
   final normalized = normalizePhoneNumber(value);
   return RegExp(r'^\+?\d{5,15}$').hasMatch(normalized);

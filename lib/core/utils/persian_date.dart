@@ -206,3 +206,10 @@ String formatPersianDateRange(DateTime start, DateTime end) {
   }
   return '${formatPersianDate(start)} تا ${formatPersianDate(end)}';
 }
+
+/// `۱۴ آبان ۱۴۰۵ · ۱۴:۲۵`
+String formatPersianDateTime(DateTime value) {
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${formatPersianDate(value)} · '
+      '${toPersianDigits('${two(value.hour)}:${two(value.minute)}')}';
+}

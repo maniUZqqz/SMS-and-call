@@ -122,8 +122,9 @@ class ScheduledCampaign {
     'selectedRecipients': selectedRecipients
         .map((recipient) => recipient.toJson())
         .toList(),
-    'startDate': dateOnly(startDate).millisecondsSinceEpoch,
-    'endDate': dateOnly(endDate).millisecondsSinceEpoch,
+    // تاریخ تقویمی (بدون ساعت و منطقه‌ی زمانی) تا با تغییر timezone گوشی یک روز جابه‌جا نشود
+    'startDate': formatIsoDate(startDate),
+    'endDate': formatIsoDate(endDate),
     'dailyStartMinute': dailyStartMinute,
     'dailyEndMinute': dailyEndMinute,
     'intervalSeconds': intervalSeconds,
@@ -156,6 +157,15 @@ class ScheduledCampaign {
     return minute >= dailyStartMinute && minute < dailyEndMinute;
   }
 
+  /// نزدیک‌ترین لحظه‌ای که این کمپین واقعاً کاری دارد: مثل [nextAllowedAt] ولی با احترام به
+  /// «نه زودتر از» ذخیره‌شده در اجرا (فاصله بین پیامک‌ها، سقف ساعتی، مکثِ خطا). بدون این،
+  /// کمپینِ در مکث همیشه «سررسید» به نظر می‌رسید و بی‌وقفه شروع و متوقف می‌شد.
+  DateTime? nextActionAt(DateTime now) {
+    final notBefore = execution?.notBefore;
+    final from = notBefore != null && notBefore.isAfter(now) ? notBefore : now;
+    return nextAllowedAt(from);
+  }
+
   DateTime? nextAllowedAt(DateTime now) {
     if (!now.isBefore(endsAt)) return null;
     if (now.isBefore(startsAt)) return startsAt;
@@ -169,7 +179,7 @@ class ScheduledCampaign {
     }
     if (minute < dailyEndMinute) return now;
 
-    final nextDay = today.add(const Duration(days: 1));
+    final nextDay = nextCalendarDay(today);
     if (nextDay.isAfter(endDate)) return null;
     return _atMinute(nextDay, dailyStartMinute);
   }
@@ -208,7 +218,7 @@ DateTime? nextAllowedCampaignTime({
   }
   if (minute < dailyEndMinute) return now;
 
-  final nextDay = dateOnly(now).add(const Duration(days: 1));
+  final nextDay = nextCalendarDay(now);
   final target = _atMinute(nextDay, dailyStartMinute);
   return target.isBefore(endsAt) ? target : null;
 }
@@ -242,16 +252,41 @@ bool scheduledCampaignOverlapsRange(
         return true;
       }
     }
-    day = day.add(const Duration(days: 1));
+    day = nextCalendarDay(day);
   }
   return false;
 }
 
+/// ساعتِ دیواری «minute» دقیقه بعد از نیمه‌شب همان روز. از سازنده‌ی DateTime استفاده می‌شود
+/// (نه جمع Duration) تا در روز تغییر ساعت تابستانی، ساعت ۸ همچنان ۸ بماند.
 DateTime _atMinute(DateTime day, int minute) {
-  return DateTime(day.year, day.month, day.day).add(Duration(minutes: minute));
+  return DateTime(day.year, day.month, day.day, minute ~/ 60, minute % 60);
 }
 
-DateTime _readDate(dynamic value) => dateOnly(_readDateTime(value));
+/// نیمه‌شبِ روز بعد (با ساختار تقویمی، نه جمع ۲۴ ساعت).
+DateTime nextCalendarDay(DateTime value) =>
+    DateTime(value.year, value.month, value.day + 1);
+
+/// `yyyy-MM-dd`
+String formatIsoDate(DateTime value) {
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${value.year.toString().padLeft(4, '0')}-${two(value.month)}-${two(value.day)}';
+}
+
+DateTime _readDate(dynamic value) {
+  if (value is String) {
+    final match = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(value.trim());
+    if (match != null) {
+      return DateTime(
+        int.parse(match.group(1)!),
+        int.parse(match.group(2)!),
+        int.parse(match.group(3)!),
+      );
+    }
+  }
+  // قالب قدیمی: میلی‌ثانیه‌ی نیمه‌شبِ محلی
+  return dateOnly(_readDateTime(value));
+}
 
 DateTime _readDateTime(dynamic value) {
   if (value is num && value > 0) {

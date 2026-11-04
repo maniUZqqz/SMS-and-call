@@ -61,6 +61,11 @@ class SmsCampaign {
     this.failedCount = 0,
     this.sentRecipientIds = const [],
     this.failedRecipientIds = const [],
+    this.skipped = const {},
+    this.failureNotes = const {},
+    this.inFlightIndex = -1,
+    this.attempt = 0,
+    this.notBefore,
   });
 
   final String id;
@@ -78,6 +83,22 @@ class SmsCampaign {
   final int failedCount;
   final List<String> sentRecipientIds;
   final List<String> failedRecipientIds;
+
+  /// گیرنده‌هایی که عمداً پیامک نگرفتند: contactId ← دلیل (`optout`، `duplicate`، `invalid`).
+  final Map<String, String> skipped;
+
+  /// توضیح کوتاهِ شکست هر گیرنده: contactId ← متن.
+  final Map<String, String> failureNotes;
+
+  /// اندیسِ گیرنده‌ای که درخواست ارسالش داده شده ولی نتیجه‌اش هنوز ثبت نشده.
+  /// اگر برنامه وسط ارسال بمیرد، با همین مقدار می‌فهمیم نتیجه نامعلوم است و دوباره نمی‌فرستیم.
+  final int inFlightIndex;
+
+  /// چندمین تلاش برای گیرنده‌ی فعلی (۰ = هنوز تلاشی نشده).
+  final int attempt;
+
+  /// پیش از این زمان پیامک بعدی نباید برود (فاصله‌ی بین پیام‌ها، backoff، سقف ساعتی).
+  final DateTime? notBefore;
 
   factory SmsCampaign.create({
     required String message,
@@ -142,6 +163,11 @@ class SmsCampaign {
       failedCount: failedCount,
       sentRecipientIds: sentIds,
       failedRecipientIds: failedIds,
+      skipped: _readStringMap(json['skipped']),
+      failureNotes: _readStringMap(json['failureNotes']),
+      inFlightIndex: (json['inFlightIndex'] as num?)?.toInt() ?? -1,
+      attempt: (json['attempt'] as num?)?.toInt() ?? 0,
+      notBefore: _readOptionalMillis(json['notBefore']),
     );
   }
 
@@ -151,14 +177,22 @@ class SmsCampaign {
     int? failedCount,
     List<String>? sentRecipientIds,
     List<String>? failedRecipientIds,
+    Map<String, String>? skipped,
+    Map<String, String>? failureNotes,
+    int? inFlightIndex,
+    int? attempt,
+    DateTime? notBefore,
+    bool clearNotBefore = false,
+    DateTime? startsAt,
+    DateTime? endsAt,
   }) {
     return SmsCampaign(
       id: id,
       message: message,
       recipients: recipients,
       intervalSeconds: intervalSeconds,
-      startsAt: startsAt,
-      endsAt: endsAt,
+      startsAt: startsAt ?? this.startsAt,
+      endsAt: endsAt ?? this.endsAt,
       title: title,
       scheduledCampaignId: scheduledCampaignId,
       dailyStartMinute: dailyStartMinute,
@@ -168,8 +202,38 @@ class SmsCampaign {
       failedCount: failedCount ?? this.failedCount,
       sentRecipientIds: sentRecipientIds ?? this.sentRecipientIds,
       failedRecipientIds: failedRecipientIds ?? this.failedRecipientIds,
+      skipped: skipped ?? this.skipped,
+      failureNotes: failureNotes ?? this.failureNotes,
+      inFlightIndex: inFlightIndex ?? this.inFlightIndex,
+      attempt: attempt ?? this.attempt,
+      notBefore: clearNotBefore ? null : (notBefore ?? this.notBefore),
     );
   }
+
+  /// اگر سرویس وسط ارسال یک پیامک کشته شده باشد، نتیجه‌اش نامعلوم است: ممکن است رفته باشد.
+  /// برای جلوگیری از پیامک تکراری برای مشتری، آن گیرنده «ناموفق (نامعلوم)» ثبت می‌شود و می‌گذریم.
+  SmsCampaign resolveInterrupted() {
+    final index = inFlightIndex;
+    if (index < 0) return this;
+    if (index != nextIndex || index >= recipients.length) {
+      return copyWith(inFlightIndex: -1);
+    }
+    final recipient = recipients[index];
+    return copyWith(
+      nextIndex: index + 1,
+      failedCount: failedCount + 1,
+      failedRecipientIds: [...failedRecipientIds, recipient.contactId],
+      failureNotes: {
+        ...failureNotes,
+        recipient.contactId:
+            'برنامه هنگام ارسال متوقف شد؛ نتیجه نامعلوم است و برای جلوگیری از پیامک تکراری دوباره ارسال نشد.',
+      },
+      inFlightIndex: -1,
+      attempt: 0,
+    );
+  }
+
+  int get skippedCount => skipped.length;
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -187,6 +251,11 @@ class SmsCampaign {
     'failedCount': failedCount,
     'sentRecipientIds': sentRecipientIds,
     'failedRecipientIds': failedRecipientIds,
+    if (skipped.isNotEmpty) 'skipped': skipped,
+    if (failureNotes.isNotEmpty) 'failureNotes': failureNotes,
+    if (inFlightIndex >= 0) 'inFlightIndex': inFlightIndex,
+    if (attempt > 0) 'attempt': attempt,
+    if (notBefore != null) 'notBefore': notBefore!.millisecondsSinceEpoch,
   };
 
   int get totalCount => recipients.length;
@@ -215,6 +284,8 @@ class CampaignHistory {
     this.recipients = const [],
     this.sentRecipientIds = const [],
     this.failedRecipientIds = const [],
+    this.skipped = const {},
+    this.failureNotes = const {},
   });
 
   final String id;
@@ -233,6 +304,8 @@ class CampaignHistory {
   final List<CampaignRecipient> recipients;
   final List<String> sentRecipientIds;
   final List<String> failedRecipientIds;
+  final Map<String, String> skipped;
+  final Map<String, String> failureNotes;
 
   factory CampaignHistory.fromCampaign(
     SmsCampaign campaign,
@@ -255,6 +328,8 @@ class CampaignHistory {
       recipients: campaign.recipients,
       sentRecipientIds: campaign.sentRecipientIds,
       failedRecipientIds: campaign.failedRecipientIds,
+      skipped: campaign.skipped,
+      failureNotes: campaign.failureNotes,
     );
   }
 
@@ -286,6 +361,8 @@ class CampaignHistory {
       recipients: _readRecipients(json['recipients']),
       sentRecipientIds: _readStringList(json['sentRecipientIds']),
       failedRecipientIds: _readStringList(json['failedRecipientIds']),
+      skipped: _readStringMap(json['skipped']),
+      failureNotes: _readStringMap(json['failureNotes']),
     );
   }
 
@@ -306,6 +383,8 @@ class CampaignHistory {
     'recipients': recipients.map((recipient) => recipient.toJson()).toList(),
     'sentRecipientIds': sentRecipientIds,
     'failedRecipientIds': failedRecipientIds,
+    if (skipped.isNotEmpty) 'skipped': skipped,
+    if (failureNotes.isNotEmpty) 'failureNotes': failureNotes,
   };
 
   List<CampaignRecipient> get sentRecipients {
@@ -319,11 +398,34 @@ class CampaignHistory {
   }
 
   List<CampaignRecipient> get unattemptedRecipients {
-    final attempted = {...sentRecipientIds, ...failedRecipientIds};
+    final attempted = {
+      ...sentRecipientIds,
+      ...failedRecipientIds,
+      ...skipped.keys,
+    };
     return recipients
         .where((item) => !attempted.contains(item.contactId))
         .toList();
   }
+
+  /// گیرنده‌هایی که عمداً رد شدند (فهرست لغو، شماره‌ی تکراری یا نامعتبر).
+  List<CampaignRecipient> get skippedRecipients {
+    return recipients
+        .where((item) => skipped.containsKey(item.contactId))
+        .toList();
+  }
+}
+
+Map<String, String> _readStringMap(dynamic value) {
+  if (value is! Map) return <String, String>{};
+  return value.map((key, item) => MapEntry(key.toString(), item.toString()));
+}
+
+DateTime? _readOptionalMillis(dynamic value) {
+  if (value is num && value > 0) {
+    return DateTime.fromMillisecondsSinceEpoch(value.toInt());
+  }
+  return null;
 }
 
 List<String> _readStringList(dynamic value) {

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:sms_bridge/sms_bridge.dart';
 import 'package:sms_and_call/features/settings/domain/server_config.dart';
 
@@ -18,10 +19,20 @@ class AppDir {
     _cached = p;
     return p;
   }
+
+  /// فقط برای تست‌ها: پوشهٔ داده را عوض می‌کند (null = بازگشت به حالت عادی).
+  @visibleForTesting
+  static void setPathForTests(String? value) => _cached = value;
 }
 
+int _tmpCounter = 0;
+
 Future<void> writeAtomicFile(File f, String data) async {
-  final tmp = File('${f.path}.tmp');
+  // نام موقتِ یکتا: رابط کاربری و سرویس هم‌زمان روی یک فایل می‌نویسند و نباید
+  // روی فایل موقتِ هم تکیه کنند (rename دومی خطا می‌داد و کمپین «ناموفق» ثبت می‌شد).
+  final tmp = File(
+    '${f.path}.${DateTime.now().microsecondsSinceEpoch}-${_tmpCounter++}.tmp',
+  );
   await tmp.writeAsString(data, flush: true);
   await tmp.rename(f.path);
 }

@@ -3,25 +3,60 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:sms_and_call/features/contacts/domain/contact.dart';
+import 'package:sms_and_call/features/optout/optout.dart';
 
 class ImportedContactData {
   const ImportedContactData({
     required this.name,
     required this.phone,
     required this.note,
+    this.optedOut = false,
   });
 
   final String name;
   final String phone;
   final String note;
 
+  /// ستون «وضعیت/لغو» فایل این شماره را «لغو» علامت زده است: هرگز پیامک نمی‌گیرد.
+  final bool optedOut;
+
   factory ImportedContactData.fromJson(Map<String, dynamic> json) {
     return ImportedContactData(
       name: (json['name'] ?? '').toString(),
       phone: (json['phone'] ?? '').toString(),
       note: (json['note'] ?? '').toString(),
+      optedOut: (json['optedOut'] ?? '').toString() == '1',
     );
   }
+}
+
+/// نتیجه‌ی حذف ردیف‌های تکراری از فهرست واردشده.
+class DedupeResult {
+  const DedupeResult({required this.unique, required this.duplicates});
+
+  final List<ImportedContactData> unique;
+
+  /// تعداد ردیف‌های تکراری (شماره‌ای که از قبل در مخاطبان هست یا در همین فایل تکرار شده).
+  final int duplicates;
+}
+
+/// شماره‌های تکراری را کنار می‌گذارد. مقایسه با [phoneKey] است، پس `0912…` و `+98912…`
+/// یکی حساب می‌شوند. اولین ردیف هر شماره می‌ماند.
+DedupeResult dedupeImportedContacts(
+  Iterable<String> existingPhones,
+  Iterable<ImportedContactData> imported,
+) {
+  final seen = existingPhones.map(phoneKey).toSet();
+  final unique = <ImportedContactData>[];
+  var duplicates = 0;
+  for (final item in imported) {
+    if (seen.add(phoneKey(item.phone))) {
+      unique.add(item);
+    } else {
+      duplicates++;
+    }
+  }
+  return DedupeResult(unique: unique, duplicates: duplicates);
 }
 
 class ContactImportResult {
@@ -363,29 +398,36 @@ int _naturalSheetCompare(String first, String second) {
 
 List<String> _parseSharedStrings(String xml) {
   final values = <String>[];
+  // `<si/>` (رشته‌ی خالی) بسته‌شونده است؛ باید یک ردیف خالی حساب شود وگرنه
+  // اندیس همه‌ی رشته‌های بعدی یکی جابه‌جا می‌شود.
   final items = RegExp(
-    r'<(?:[\w.-]+:)?si\b[^>]*>([\s\S]*?)</(?:[\w.-]+:)?si\s*>',
+    r'<(?:[\w.-]+:)?si\b([^>]*?)(?:/>|>([\s\S]*?)</(?:[\w.-]+:)?si\s*>)',
     caseSensitive: false,
   ).allMatches(xml);
   for (final item in items) {
-    values.add(_allTagText(item.group(1)!, 't'));
+    values.add(_allTagText(item.group(2) ?? '', 't'));
   }
   return values;
 }
 
 List<List<String>> _parseWorksheet(String xml, List<String> sharedStrings) {
   final output = <List<String>>[];
+  // ردیف و سلولِ خالی در Excel معمولاً «بسته‌شونده» است (<row r="3"/>، <c r="B2" s="1"/>).
+  // regexِ قبلی چنین تگی را تا پایانِ تگِ بعدی ادامه می‌داد و سلول/ردیف بعدی را می‌بلعید
+  // (ستون‌ها جابه‌جا و رشته‌ها به‌جای متن، شماره‌ی اندیس می‌شدند).
   final rows = RegExp(
-    r'<(?:[\w.-]+:)?row\b[^>]*>([\s\S]*?)</(?:[\w.-]+:)?row\s*>',
+    r'<(?:[\w.-]+:)?row\b([^>]*?)(?:/>|>([\s\S]*?)</(?:[\w.-]+:)?row\s*>)',
     caseSensitive: false,
   ).allMatches(xml);
   for (final rowMatch in rows) {
+    final rowBody = rowMatch.group(2);
+    if (rowBody == null) continue;
     final values = <String>[];
     var fallbackColumn = 0;
     final cells = RegExp(
-      r'<(?:[\w.-]+:)?c\b([^>]*)>([\s\S]*?)</(?:[\w.-]+:)?c\s*>',
+      r'<(?:[\w.-]+:)?c\b([^>]*?)(?:/>|>([\s\S]*?)</(?:[\w.-]+:)?c\s*>)',
       caseSensitive: false,
-    ).allMatches(rowMatch.group(1)!);
+    ).allMatches(rowBody);
     for (final cell in cells) {
       final attributes = cell.group(1)!;
       final reference = _attribute(attributes, 'r');
@@ -395,7 +437,7 @@ List<List<String>> _parseWorksheet(String xml, List<String> sharedStrings) {
       while (values.length <= column) {
         values.add('');
       }
-      values[column] = _cellText(attributes, cell.group(2)!, sharedStrings);
+      values[column] = _cellText(attributes, cell.group(2) ?? '', sharedStrings);
       fallbackColumn = column + 1;
     }
     if (values.any((value) => value.trim().isNotEmpty)) output.add(values);
@@ -449,10 +491,10 @@ String _firstTagText(String source, String tag) {
 
 String _allTagText(String source, String tag) {
   final matches = RegExp(
-    '<(?:[\\w.-]+:)?$tag\\b[^>]*>([\\s\\S]*?)</(?:[\\w.-]+:)?$tag\\s*>',
+    '<(?:[\\w.-]+:)?$tag\\b([^>]*?)(?:/>|>([\\s\\S]*?)</(?:[\\w.-]+:)?$tag\\s*>)',
     caseSensitive: false,
   ).allMatches(source);
-  return matches.map((match) => _decodeXml(match.group(1)!)).join();
+  return matches.map((match) => _decodeXml(match.group(2) ?? '')).join();
 }
 
 String _decodeXml(String value) {
@@ -530,11 +572,19 @@ _ExtractionResult _extractContacts(List<List<String>> sourceRows) {
     final note = columns.note == null
         ? ''
         : _valueAt(row, columns.note!).trim();
+    final status = columns.status == null
+        ? ''
+        : _valueAt(row, columns.status!).trim();
     if (name.isEmpty || !isValidPhoneNumber(phone)) {
       skipped++;
       continue;
     }
-    contacts.add(<String, String>{'name': name, 'phone': phone, 'note': note});
+    contacts.add(<String, String>{
+      'name': name,
+      'phone': phone,
+      'note': note,
+      'optedOut': _isOptedOutCell(status, columns.statusIsFlag) ? '1' : '',
+    });
   }
   return _ExtractionResult(
     contacts: contacts,
@@ -550,12 +600,30 @@ class _Columns {
     required this.phone,
     required this.startRow,
     this.note,
+    this.status,
+    this.statusIsFlag = false,
   });
 
   final int name;
   final int phone;
   final int? note;
   final int startRow;
+
+  /// ستون «وضعیت» یا «لغو» (برای علامت‌گذاری شماره‌های لغوشده)
+  final int? status;
+
+  /// true: عنوان ستون خودش «لغو/unsubscribe» است و هر مقدارِ مثبت یعنی لغو
+  final bool statusIsFlag;
+}
+
+bool _isOptedOutCell(String value, bool isFlag) {
+  final text = value.trim();
+  if (text.isEmpty) return false;
+  if (looksLikeOptOutMarker(text)) return true;
+  if (!isFlag) return false;
+  final lower = normalizeContactSearch(text).replaceAll(RegExp(r'\s+'), '');
+  const negative = <String>{'0', 'نه', 'خیر', 'no', 'false', 'n', '-', '×'};
+  return !negative.contains(lower);
 }
 
 _Columns? _detectColumns(List<List<String>> rows) {
@@ -565,17 +633,26 @@ _Columns? _detectColumns(List<List<String>> rows) {
     int? name;
     int? phone;
     int? note;
+    int? status;
+    var statusIsFlag = false;
     for (var column = 0; column < row.length; column++) {
       final header = _compactHeader(row[column]);
       if (_nameHeaders.contains(header)) name ??= column;
       if (_phoneHeaders.contains(header)) phone ??= column;
       if (_noteHeaders.contains(header)) note ??= column;
+      if (_statusHeaders.contains(header) && status == null) status = column;
+      if (_optOutFlagHeaders.contains(header) && status == null) {
+        status = column;
+        statusIsFlag = true;
+      }
     }
     if (name != null && phone != null) {
       return _Columns(
         name: name,
         phone: phone,
         note: note,
+        status: status,
+        statusIsFlag: statusIsFlag,
         startRow: rowIndex + 1,
       );
     }
@@ -681,6 +758,21 @@ final Set<String> _phoneHeaders = <String>{
   'phoneno',
   'tel',
   'telephone',
+};
+
+final Set<String> _statusHeaders = <String>{'وضعیت', 'status', 'state'};
+
+final Set<String> _optOutFlagHeaders = <String>{
+  'لغو',
+  'لغوعضویت',
+  'لغوشده',
+  'انصراف',
+  'unsubscribe',
+  'unsubscribed',
+  'optout',
+  'optedout',
+  'dnc',
+  'donotcontact',
 };
 
 final Set<String> _noteHeaders = <String>{
