@@ -52,6 +52,8 @@ android {
         if (hasReleaseSigning) {
             create("release") {
                 storeFile = file(releaseStoreFile!!)
+                // کلید با openssl به‌صورت PKCS12 ساخته می‌شود (نه JKS قدیمی)
+                storeType = System.getenv("ANDROID_KEYSTORE_TYPE")?.takeIf { it.isNotBlank() } ?: "pkcs12"
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword
